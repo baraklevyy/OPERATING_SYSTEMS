@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <wait.h>
+#include <errno.h>
 
 typedef enum _Process_status {PIPE, BACKGROUND, NEITHER} p_STATUS;
 /*#################################### SIGNALS HANDLERS ############################################################*/
@@ -87,7 +88,11 @@ int regular_process(char **argv){
         exit(1);
     }
     else{ //father should reap the zombies
-        waitpid(p1_id, &p_exit_code, 0);
+        int wait_err = waitpid(p1_id, &p_exit_code, 0);
+        if(-1 == wait_err && (ECHILD != errno) && (EINTR != errno)) {
+            fprintf(stderr, "WAITPID_ERROR\n");
+            exit(1);
+        }
     }
     return 1;
 }
@@ -106,7 +111,7 @@ int background_process(char **argv){
     else{ //father should reap the zombies
         if(sigaction(SIGCHLD, &zombie_reaper, NULL) == -1){
             fprintf(stderr, "SIGACTION ERROR");
-            return 1;
+            exit(1);
         }
     }
     return 1;
@@ -135,7 +140,7 @@ int piped_process(int splitting_index, char **argv){
         close(readerfd);
         //redirecting the output of this process into the pipe
         if(dup2(writerfd, STDOUT_FILENO) == -1){
-            fprintf(stderr,"Fail in dup2() func\n");
+            fprintf(stderr,"DUP2 ERROR\n");
             exit(1);
         }
         close(writerfd);
@@ -147,12 +152,12 @@ int piped_process(int splitting_index, char **argv){
         // child process #2
         p2_id = fork();
         if (p2_id == -1) {
-            fprintf(stderr, "FORK ERROR");
+            fprintf(stderr, "FORK ERROR\n");
             return 0;
         }
         if (p2_id == 0) {
             if (sigaction(SIGINT, &default_signal, NULL) == -1) { // reinstalling sigint handler to default one
-                fprintf(stderr, "SIGACTION ERROR");
+                fprintf(stderr, "SIGACTION ERROR\n");
                 exit(1);
             }
             close(writerfd);
@@ -171,8 +176,17 @@ int piped_process(int splitting_index, char **argv){
             close(readerfd);
             close(writerfd);
             //shell waiting for the foreground child processes
-            waitpid(p1_id, &p1_status, 0);
-            waitpid(p2_id, &p2_status, 0);
+            int wait_err1 = waitpid(p1_id, &p1_status, 0);
+            if(-1 == wait_err1 && (ECHILD != errno) && (EINTR != errno)) {
+                fprintf(stderr, "WAITPID_ERROR\n");
+                exit(1);
+            }
+            int wait_err2 = waitpid(p2_id, &p2_status, 0);
+            if(-1 == wait_err2 && (ECHILD != errno) && (EINTR != errno)){
+                fprintf(stderr,"WAITPID_ERROR\n");
+                exit(1);
+            }
+
         }
     }
     return 1;
