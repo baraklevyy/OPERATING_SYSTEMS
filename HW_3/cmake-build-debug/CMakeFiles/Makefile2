@@ -94,12 +94,12 @@ clean: CMakeFiles/HW3.dir/clean
 CMakeFiles/HW3.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/HW3.dir/build.make CMakeFiles/HW3.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/HW3.dir/build.make CMakeFiles/HW3.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/barak/CLionProjects/HW3/cmake-build-debug/CMakeFiles --progress-num=1,2,3,4,5 "Built target HW3"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/barak/CLionProjects/HW3/cmake-build-debug/CMakeFiles --progress-num=1,2,3,4 "Built target HW3"
 .PHONY : CMakeFiles/HW3.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/HW3.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/barak/CLionProjects/HW3/cmake-build-debug/CMakeFiles 5
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/barak/CLionProjects/HW3/cmake-build-debug/CMakeFiles 4
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/HW3.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/barak/CLionProjects/HW3/cmake-build-debug/CMakeFiles 0
 .PHONY : CMakeFiles/HW3.dir/rule

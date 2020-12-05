@@ -1,5 +1,4 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/HW3.dir/main.c.o"
   "CMakeFiles/HW3.dir/message_reader.c.o"
   "CMakeFiles/HW3.dir/message_sender.c.o"
   "CMakeFiles/HW3.dir/message_slot.c.o"
