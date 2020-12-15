@@ -13,7 +13,7 @@
 
 MODULE_LICENSE("GPL");
 
-             ,       ,    
+/*           ,       ,    
              \\_    /|    
              /- _`-/ '    
             (/\/ \  /\    
@@ -29,11 +29,11 @@ MODULE_LICENSE("GPL");
                 ( ( / \__ 
              ,---_' |    \
              `-(____)    V
-
+*/
 /*************************************
  *           DATA STRUCTURES         *
  *************************************/
-                   
+  /*
     SLOT0               SLOT1               SLOT2
    .---.               .---.               .---.
   /   /|              /   /|              /   /|
@@ -65,7 +65,7 @@ MODULE_LICENSE("GPL");
     o
     o
     o 
-                   
+    */               
 typedef struct _channel_list{
     int channel_id;
     char *message_buffer;
