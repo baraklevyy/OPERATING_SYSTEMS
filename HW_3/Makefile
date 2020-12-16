@@ -1,4 +1,5 @@
-obj-m := chardev.o
+CONFIG_MODULE_SIG=n
+obj-m := message_slot.o
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 

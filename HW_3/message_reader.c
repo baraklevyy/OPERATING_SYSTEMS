@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
         printf("OPEN ERROR RAISE: %s\n", strerror(errno));
         exit(1);
     }
-    long ioctl_ret_val = ioctl(file_descriptor, MSG_SLOT_CHANNEL, string_to_int(argv[2]));
+    long ioctl_ret_val = ioctl(file_descriptor, MSG_SLOT_CHANNEL, atoi(argv[2]));
     if (ioctl_ret_val != 0) {
         printf("IOCTL ERROR RAISE: %s\n", strerror(errno));
         exit(1);

@@ -12,60 +12,66 @@
 #include "message_slot.h"
 
 MODULE_LICENSE("GPL");
-
-/*           ,       ,    
-             \\_    /|    
-             /- _`-/ '    
-            (/\/ \  /\    
-            O O   ) / |   
-            `-^--'`<  '   
-           (_)   _  )/    
-            `.___/` /     
-              `--' /      
-    <---.   __ / __ \     
-    <---|==(BL)=) \ /===  
-    <---'   `-' `._,'\    
-               \     /    
-                ( ( / \__ 
+/*                   ,
+             \\_    /|
+             /- _`-/ '
+            (/\/ \  /\
+            O O   ) / |
+            `-^--'`<  '
+           (_)   _  )/
+            `.___/` /
+              `--' /
+    <---.   __ / __ \
+    <---|==(BL)=) \ /===
+    <---'   `-' `._,'\
+               \     /
+                ( ( / \__
              ,---_' |    \
              `-(____)    V
 */
 /*************************************
  *           DATA STRUCTURES         *
  *************************************/
-  /*
-    SLOT0               SLOT1               SLOT2
-   .---.               .---.               .---.
-  /   /|              /   /|              /   /|
- .---. |             .---. |             .---. |
- |   | ' --------->  |   | ' --------->  |   | ' --------->o o o
- |   |/              |   |/              |   |/ 
- '---'               '---'               '---'  
-    |                  |                   |
-    |                  |                   |
-    |                  |                   |
-    |                  |                   |
-    v                  v                   v
-  .---.              .---.               .---.
-  |CH0|              |CH0|               |CH0|
-  '---'              '---'               '---'
-    |                  |                   |
-    v                  |                   v
-  .---.                v                 .---.
-  |CH1|                o                 |CH1|
-  '---'                o                 '---'
-    |                  o                   |
-    v                                      |
-  .---.                                    v
-  |CH2|                                    o
-  '---'                                    o
-    |                                      o
-    |
-    v
-    o
-    o
-    o 
-    */               
+/*
+SLOT0               SLOT1               SLOT2
+  .---.               .---.               .---.
+ /   /|              /   /|              /   /|
+.---. |             .---. |             .---. |
+|   | ' --------->  |   | ' --------->  |   | ' --------->o o o
+|   |/              |   |/              |   |/
+'---'               '---'               '---'
+|                  |                   |
+|                  |                   |
+|                  |                   |
+|                  |                   |
+v                  v                   v
+.---.              .---.               .---.
+|CH0|              |CH0|               |CH0|
+'---'              '---'               '---'
+|                  |                   |
+v                  |                   v
+.---.              v                   .---.
+|CH1|              o                   |CH1|
+'---'              o                   '---'
+|                  o                   |
+v                                      |
+.---.                                  v
+|CH2|                                  o
+'---'                                  o
+|                                      o
+|
+v
+o
+o
+o
+*/
+
+
+
+/*************************************
+ *           DATA STRUCTURES         *
+ *************************************/
+
 typedef struct _channel_list{
     int channel_id;
     char *message_buffer;
@@ -80,6 +86,8 @@ typedef struct _slot_list{
 }slot;
 
 static slot* global_slot_list = NULL;
+
+
 
 /*************************************
  *           HELPER FUNCTIONS        *
@@ -119,10 +127,11 @@ static int add_new_slot(int minor_number){
 /*******************************************************/
 /*adding a new message_channel to a specific slot*/
 static int add_channel_to_slot(slot* current_slot, int channel_id){
+    char *buffer;
     /* kcalloc — allocate memory for an array. The memory is set to zero.*/
     channel *new_channel = (channel*)kmalloc(sizeof(channel), GFP_KERNEL);
     if(NULL == new_channel) return -ENOMEM;
-    char *buffer = (char*)kcalloc(BUFFER_MAX_LENGTH, sizeof(char), GFP_KERNEL);
+    buffer = (char*)kcalloc(BUFFER_MAX_LENGTH, sizeof(char), GFP_KERNEL);
     if(NULL == buffer){
         kfree(new_channel);
         return -ENOMEM;
@@ -136,7 +145,7 @@ static int add_channel_to_slot(slot* current_slot, int channel_id){
 }
 /*******************************************************/
 /*this function destroy all data structures that had been allocated dynamically */
-static void destroy(){
+static void destroy(void){
     channel *current_channel, *current_channel_head;
     slot *current_slot;
     while(NULL != global_slot_list){
@@ -148,7 +157,7 @@ static void destroy(){
             current_channel_head = current_channel_head->next;
             kfree(current_channel->message_buffer);
             kfree(current_channel);
-            //kfree(current_slot);
+            kfree(current_slot);
         }
         kfree(current_slot);
     }
@@ -157,9 +166,10 @@ static void destroy(){
  *           DEVICE FUNCTIONS        *
  ************************************* */
 static int device_open(struct inode* inode, struct file *file) {
+    int minor_number;
     if (NULL == file || NULL == inode) return -EINVAL;
     file->private_data = NULL; //nullifying private member
-    int minor_number = iminor(inode);
+    minor_number = iminor(inode);
     if (NULL == retrieve_slot_from_list(minor_number)) {
         return add_new_slot(minor_number);
     }
@@ -173,15 +183,18 @@ static int device_release( struct inode* inode,
 }
 /*******************************************************/
 static ssize_t device_read(struct file* file, char __user* buffer, size_t length, loff_t* offset){
+    int index,channel_length, minor_number;
+    slot *slot;
+    channel *channel;
     if (NULL == file || NULL == buffer) return -EINVAL;
-    int minor_number = iminor(file_inode(file));
-    slot *slot = retrieve_slot_from_list(minor_number);
-    channel *channel = retrieve_channel(slot->message_channel_list, (uintptr_t)file->private_data);
+    minor_number = iminor(file_inode(file));
+    slot = retrieve_slot_from_list(minor_number);
+    channel = retrieve_channel(slot->message_channel_list, (uintptr_t)file->private_data);
     if (NULL == channel) return -EINVAL;
-    int channel_length = channel->message_length;
+    channel_length = channel->message_length;
     if (0 == channel_length) return -EWOULDBLOCK;
     if (length < channel_length) return -ENOSPC;
-    for (int index = 0; index < channel_length; index++){
+    for (index = 0; index < channel_length; index++){
         //in order not to access illegal user space memory location
         if (SUCCESS != put_user(*(channel->message_buffer + index), &(*(buffer + index)))) return -EINVAL;
     }
@@ -189,16 +202,20 @@ static ssize_t device_read(struct file* file, char __user* buffer, size_t length
 }
 /*******************************************************/
 static ssize_t device_write(struct file*  file, const char __user* buffer, size_t  length, loff_t* offset){
+    int index, minor_number;
+    struct inode *current_inode;
+    slot *slot;
+    channel *channel;
     if (NULL == file || NULL == buffer) return -EINVAL;
     if (0 == length || BUFFER_MAX_LENGTH < length) return -EMSGSIZE;
-    struct inode *current_inode = file_inode(file);
-    int minor_number = iminor(current_inode);
-    slot *slot = retrieve_slot_from_list(minor_number);
+    current_inode = file_inode(file);
+    minor_number = iminor(current_inode);
+    slot = retrieve_slot_from_list(minor_number);
     if(NULL == slot) return -EINVAL;
-    channel *channel = retrieve_channel(slot->message_channel_list, (uintptr_t)file->private_data);
+    channel = retrieve_channel(slot->message_channel_list, (uintptr_t)file->private_data);
     if (NULL == channel) return -EINVAL;
     channel->message_length = 0;
-    for (int index = 0; index < length; index++){
+    for (index = 0; index < length; index++){
         //in order not to access illegal user space memory location
         if (SUCCESS != get_user(*(channel->message_buffer + index), &(*(buffer + index)))) return -EINVAL;
         channel->message_length++;
@@ -207,10 +224,13 @@ static ssize_t device_write(struct file*  file, const char __user* buffer, size_
 }
 /*******************************************************/
 static long device_ioctl(struct  file* file, unsigned int ioctl_command_id, unsigned long  ioctl_param){
+    int minor_number;
+    slot *slot;
+    struct inode *current_inode;
     if ((0 == ioctl_param) || (MSG_SLOT_CHANNEL != ioctl_command_id) || NULL == file) return -EINVAL;
-    struct inode *current_inode = file_inode(file);
-    int minor_number = iminor(current_inode);
-    slot *slot = retrieve_slot_from_list(minor_number);
+    current_inode = file_inode(file);
+    minor_number = iminor(current_inode);
+    slot = retrieve_slot_from_list(minor_number);
     if(NULL == slot) return -EINVAL;
     if (NULL == (retrieve_channel(slot->message_channel_list, ioctl_param))) {
         if (SUCCESS != add_channel_to_slot(slot, ioctl_param)) return -ENOMEM;
@@ -235,7 +255,7 @@ struct file_operations Fops =
         };
 /*******************************************************/
 /* Initialization */
-static int __init initialize() {
+static int __init initialize(void) {
     int major_number = FAILURE;
     major_number = register_chrdev(MAJOR_NUMBER, DEVICE_RANGE_NAME, &Fops);
     if (major_number < SUCCESS){ //most kind of errors returning negative values
@@ -246,7 +266,7 @@ static int __init initialize() {
     return SUCCESS;
 }
 /*******************************************************/
-static void __exit cleanup(){
+static void __exit cleanup(void){
     destroy();
     unregister_chrdev(MAJOR_NUMBER, DEVICE_RANGE_NAME);
 }
