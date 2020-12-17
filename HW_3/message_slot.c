@@ -88,80 +88,15 @@ typedef struct _slot_list{
 static slot* global_slot_list = NULL;
 
 
+/*Helper Declarations*/
+static slot* retrieve_slot_from_list(int minor_number);
+static channel* retrieve_channel(channel* ch_ls, int ch_id);
+static int add_new_slot(int minor_number);
+static int add_new_slot(int minor_number);
+static int add_channel_to_slot(slot* current_slot, int channel_id);
+static void destroy(void);
 
-/*************************************
- *           HELPER FUNCTIONS        *
- ************************************* */
 
-/*return the slot with corresponding minor number or NULL if not exist*/
-static slot* retrieve_slot_from_list(int minor_number){
-    slot *head = global_slot_list;
-    while(NULL != head){
-        if(minor_number == head->minor_number) return head;
-        head = head->next;
-    }
-    return NULL;
-}
-/*******************************************************/
-/*return the channel with corresponding channel_id number or NULL if not exist*/
-static channel* retrieve_channel(channel* ch_ls, int ch_id){
-    channel *head = ch_ls;
-    while(NULL != head) {
-        if (ch_id == head->channel_id) return head;
-        head = head->next;
-    }
-    return NULL;
-}
-/*******************************************************/
-/*adding a new slot to the slot_list*/
-static int add_new_slot(int minor_number){
-    /*GFP_KERNEL - Allocate normal kernel ram. According to man_page.*/
-    slot *new_slot = (slot*)kmalloc(sizeof(slot), GFP_KERNEL);
-    if(NULL == new_slot) return -ENOMEM; //allocation failed
-    new_slot->next = global_slot_list;
-    global_slot_list = new_slot;
-    new_slot->message_channel_list = NULL;
-    new_slot->minor_number = minor_number;
-    return SUCCESS;
-}
-/*******************************************************/
-/*adding a new message_channel to a specific slot*/
-static int add_channel_to_slot(slot* current_slot, int channel_id){
-    char *buffer;
-    /* kcalloc — allocate memory for an array. The memory is set to zero.*/
-    channel *new_channel = (channel*)kmalloc(sizeof(channel), GFP_KERNEL);
-    if(NULL == new_channel) return -ENOMEM;
-    buffer = (char*)kcalloc(BUFFER_MAX_LENGTH, sizeof(char), GFP_KERNEL);
-    if(NULL == buffer){
-        kfree(new_channel);
-        return -ENOMEM;
-    }
-    new_channel->message_buffer = buffer;
-    new_channel->message_length = SUCCESS;
-    new_channel->next = current_slot->message_channel_list;
-    current_slot->message_channel_list = new_channel;
-    new_channel->channel_id = channel_id;
-    return SUCCESS;
-}
-/*******************************************************/
-/*this function destroy all data structures that had been allocated dynamically */
-static void destroy(void){
-    channel *current_channel, *current_channel_head;
-    slot *current_slot;
-    while(NULL != global_slot_list){
-        current_slot = global_slot_list;
-        current_channel_head = current_slot->message_channel_list;
-        global_slot_list = global_slot_list->next; /*storing the incremented pointer in order not to lost the rest of the list*/
-        while(NULL != current_channel_head){
-            current_channel = current_channel_head;
-            current_channel_head = current_channel_head->next;
-            kfree(current_channel->message_buffer);
-            kfree(current_channel);
-            kfree(current_slot);
-        }
-        kfree(current_slot);
-    }
-}
 /*************************************
  *           DEVICE FUNCTIONS        *
  ************************************* */
@@ -275,3 +210,76 @@ module_init(initialize);
 module_exit(cleanup);
 /*************************END***************************/
 
+/*************************************
+ *           HELPER FUNCTIONS        *
+ ************************************* */
+
+/*return the slot with corresponding minor number or NULL if not exist*/
+static slot* retrieve_slot_from_list(int minor_number){
+    slot *head = global_slot_list;
+    while(NULL != head){
+        if(minor_number == head->minor_number) return head;
+        head = head->next;
+    }
+    return NULL;
+}
+/*******************************************************/
+/*return the channel with corresponding channel_id number or NULL if not exist*/
+static channel* retrieve_channel(channel* ch_ls, int ch_id){
+    channel *head = ch_ls;
+    while(NULL != head) {
+        if (ch_id == head->channel_id) return head;
+        head = head->next;
+    }
+    return NULL;
+}
+/*******************************************************/
+/*adding a new slot to the slot_list*/
+static int add_new_slot(int minor_number){
+    /*GFP_KERNEL - Allocate normal kernel ram. According to man_page.*/
+    slot *new_slot = (slot*)kmalloc(sizeof(slot), GFP_KERNEL);
+    if(NULL == new_slot) return -ENOMEM; //allocation failed
+    new_slot->next = global_slot_list;
+    global_slot_list = new_slot;
+    new_slot->message_channel_list = NULL;
+    new_slot->minor_number = minor_number;
+    return SUCCESS;
+}
+/*******************************************************/
+/*adding a new message_channel to a specific slot*/
+static int add_channel_to_slot(slot* current_slot, int channel_id){
+    char *buffer;
+    /* kcalloc — allocate memory for an array. The memory is set to zero.*/
+    channel *new_channel = (channel*)kmalloc(sizeof(channel), GFP_KERNEL);
+    if(NULL == new_channel) return -ENOMEM;
+    buffer = (char*)kcalloc(BUFFER_MAX_LENGTH, sizeof(char), GFP_KERNEL);
+    if(NULL == buffer){
+        kfree(new_channel);
+        return -ENOMEM;
+    }
+    new_channel->message_buffer = buffer;
+    new_channel->message_length = SUCCESS;
+    new_channel->next = current_slot->message_channel_list;
+    current_slot->message_channel_list = new_channel;
+    new_channel->channel_id = channel_id;
+    return SUCCESS;
+}
+/*******************************************************/
+/*this function destroy all data structures that had been allocated dynamically */
+static void destroy(void){
+    channel *current_channel, *current_channel_head;
+    slot *current_slot;
+    while(NULL != global_slot_list){
+        current_slot = global_slot_list;
+        current_channel_head = current_slot->message_channel_list;
+        global_slot_list = global_slot_list->next; /*storing the incremented pointer in order not to lost the rest of the list*/
+        while(NULL != current_channel_head){
+            current_channel = current_channel_head;
+            current_channel_head = current_channel_head->next;
+            kfree(current_channel->message_buffer);
+            kfree(current_channel);
+            kfree(current_slot);
+        }
+        kfree(current_slot);
+    }
+}
