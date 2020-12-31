@@ -71,7 +71,7 @@ static pthread_mutex_t mutex_queue_operations;	// protecting critical segment wh
 static pthread_cond_t cv_start_searching;          // condition variable to start the threads
 static pthread_cond_t cv_wait_for_work;             // condition variable to indicate waiting for work threads
 static t_list th_list;							// global threads list
-//static atomic_int number_of_threads_err;        // threads that encountered error
+static atomic_int number_of_threads_err;        // threads that encountered error
 static atomic_int number_of_found;              // number of terms found
 /**************************
 # function declarations   #
@@ -89,23 +89,23 @@ void* dir_worm(void *arg);
 void initialize_lockers();
 void destroy_lock_cond();
 bool has_error_during_joining();
-void destroy_lists();
+//void destroy_lists();
 
 void prepare_threads(void){
     int rc;
-    th_list.size = THREAD_NUM;
+    //th_list.size = THREAD_NUM;
     for(long thread_number = 0; thread_number < THREAD_NUM; thread_number++){
         t_node *current_t_node = (t_node*)calloc(1, sizeof(t_node));
         if(NULL == current_t_node) handle_error("calloc failed"); // this is error in the main thread - exiting
         if(FALSE == thread_number){ //first node to insert to list.
             th_list.head = current_t_node;
-            //th_list.size++;
+            th_list.size++;
         }
         else{ //not the first node to insert
             //inserting FIFO
             current_t_node->next = th_list.head;
             th_list.head = current_t_node;
-            //th_list.size++;
+            th_list.size++;
         }
         rc = pthread_create(&(current_t_node->thread), NULL, (void*)dir_worm, (void *)current_t_node);
         if(FALSE != rc) handle_error("pthread_create failed"); // error in main thread - exiting
@@ -172,7 +172,12 @@ pthread_cond_signal (&cond);
 
 // allow others to proceed
  pthread_mutex_unlock (&lock)*/
-
+/*
+int broadcast_deadlock(){
+    if(queue.size == 0 && waiting_threads_counter == THREAD_NUM - number_of_threads_err - 1) return TRUE;
+    return FALSE;
+}
+*/
 dir_node* dequeue(){
     pthread_mutex_lock(&mutex_queue_operations);
     //printf("dequeue\n");
@@ -184,6 +189,12 @@ dir_node* dequeue(){
             pthread_mutex_unlock(&mutex_queue_operations);
             return NULL; //exiting this thread from being dequeue
         }
+/*
+        if(broadcast_deadlock() == TRUE){
+            waiting_threads_counter++;
+            break;
+        }
+*/
         waiting_threads_counter++; // protected under mutex_queue_operations from race conditions
         pthread_cond_wait(&cv_wait_for_work, &mutex_queue_operations); /* the wait function unlock the mutex. when signal is called on some thread it continue with the corresponding thread on the next line, furthermore when the thread that blocked by this cv get signalled he aquire the mutex from the signalled thread and lock the mutex again.*/
         waiting_threads_counter--; //here the thread continue and therefore decrement the waiting signal number by one
@@ -217,6 +228,10 @@ int is_terminating(){
     //not to include the main thread also in the waiting
     if((0 == queue.size) && (th_list.size == waiting_threads_counter + 1)){
         EXIT_FLAG = TRUE; // the program should exit if these conditions are true -  setting EXIT_FLAG to TRUE
+        return TRUE;
+    }
+    if(THREAD_NUM == number_of_threads_err){
+        EXIT_FLAG = TRUE;
         return TRUE;
     }
     return FALSE;
@@ -272,29 +287,32 @@ struct dirent {
    S_IXOTH    00001     others have execute permission
    ***********************************************************************/
 /*free this dynamically allocated linked lists*/
+/*
 void destroy_lists(){
     dir_node *current_node, *next_node;
     t_node *current_t_node, *next_t_node;
     current_node = queue.head;
     current_t_node = th_list.head;
-    /*destroying the directories list*/
+
     while(NULL != current_node){
         next_node = current_node;
         free(current_node);
         current_node = next_node;
     }
-    /*destroying the thread list*/
+
     while(NULL != current_t_node){
         next_t_node = current_t_node->next;
         free(current_t_node);
         current_t_node = next_t_node;
     }
 }
+*/
 
 int is_directory(char* path) {
     struct stat sb;
     if (FAILURE == lstat(path, &sb)){
         handle_regular_perror("lstat ERROR");
+        number_of_threads_err++;
         pthread_exit((void*)EXIT_FAILURE);
     }
     if(S_IFDIR == (sb.st_mode & S_IFMT)) return TRUE;
@@ -320,19 +338,9 @@ int is_searchable_directory(char *path){
 int is_dot_or_double_dot(char *filename){
     return (strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0) ? TRUE : FALSE;
 }
-/*this function print the path is its compatible with searching term*/
-int print_corresponding_path(char *fullpath){
-    /*The strstr() function finds the first occurrence of the substring int the second argument in the string located in teh first argument. The terminating null bytes ('\0') are not compared.
-    RETURN VALUE
-    These functions return a pointer to the beginning of the located substring, or NULL if the substring is not found.*/
-    char *res = strstr(fullpath, SEARCH_TERM);
-    if(NULL == res) return FALSE;
-    return TRUE;
-}
+
 // this is thread function. when a new thread is entering he got a new stack
 void* dir_worm(void *arg){
-    //printf("dirworm\n");
-    //t_node *thread_node;
     dir_node *dequeue_node;
     DIR *dir;
     struct dirent *file_information;
@@ -342,7 +350,6 @@ void* dir_worm(void *arg){
     pthread_cond_wait((&cv_start_searching), &mutex_thread_list);
     starting_thread_counter++;
     pthread_mutex_unlock(&mutex_thread_list);
-    //printf("exit dirworm accumulation\n");
     while(FALSE == EXIT_FLAG){ //iterating as long as exit_flag is FALSE == 0
         if(TRUE == is_terminating()) break; // first checking wheter I have to continue or quite from that thread
         //thread_node = (t_node*)arg; //threads taking void pointers as argument so I have to cast
@@ -355,7 +362,8 @@ void* dir_worm(void *arg){
                 free(dequeue_node); //each node allocated dynamically using 'create_dir_node(char *path)'
                 continue; //just permission access denied, I can continue and dont exit thread
             }
-            perror("Cannot open directory... exiting thread");
+            perror("Cannot open directory..... exiting thread");
+            number_of_threads_err++;
             pthread_exit((void*)TRUE);
         }
         /*The  readdir()  function returns a pointer to a dirent structure representing the next directory entry in the directory stream pointed to by dirp.  It returns NULL on reaching the end of the directory stream or if
@@ -387,7 +395,7 @@ void* dir_worm(void *arg){
         closedir(dir);
         free(dequeue_node);
     }
-    sleep(0); // here I found a deadlock. Can be while broadcasting to all threads but one threads isn't in the waiting list of the cv, so I add a short waiting in order to solve that
+    sleep(0.001); // here I found a deadlock. Can be while broadcasting to all threads but one threads isn't in the waiting list of the cv, so I add a short waiting in order to solve that
     pthread_cond_broadcast(&cv_wait_for_work); //everybody finished so signal to everybody to continue, and actually finish execution.
     pthread_exit(FALSE); // here the thread has finished its job
 }
@@ -405,13 +413,14 @@ void initialize_lockers(){
 }
 
 void destroy_lock_cond(){
-    int rc = 0;
-    rc += pthread_mutex_destroy(&mutex_queue_operations);
-    rc += pthread_mutex_destroy(&mutex_thread_list);
+    int rc;
+    rc = pthread_mutex_destroy(&mutex_queue_operations);
     if (FALSE != rc) handle_error("mutex destroy ERROR");
-    rc = 0;
-    rc += pthread_cond_destroy(&cv_start_searching);
-    rc += pthread_cond_destroy(&cv_wait_for_work);
+    rc = pthread_mutex_destroy(&mutex_thread_list);
+    if (FALSE != rc) handle_error("mutex destroy ERROR");
+    rc = pthread_cond_destroy(&cv_start_searching);
+    if (FALSE != rc) handle_error("condition variable destroy ERROR");
+    rc = pthread_cond_destroy(&cv_wait_for_work);
     if (FALSE != rc) handle_error("condition variable destroy ERROR");
 }
 
@@ -445,7 +454,7 @@ int main(int argc, char **argv){
     bool has_join_errors= has_error_during_joining();
     int exit_code = (has_join_errors == false) ? EXIT_SUCCESS : EXIT_FAILURE;
     if(EXIT_SUCCESS == exit_code)  printf("Done searching, found %d files\n" ,number_of_found); // no errors
-    //destroy_lock_cond();
+    destroy_lock_cond();
     //destroy_lists();
     exit(exit_code);
 }
